@@ -7,6 +7,8 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
+RUN npm install --package-lock-only --ignore-scripts
+
 COPY package.json package-lock.json* ./
 
 RUN npm ci --omit=dev && npm cache clean --force
