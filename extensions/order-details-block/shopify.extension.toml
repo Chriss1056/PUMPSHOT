@@ -8,8 +8,8 @@ uid = "378350e7-d693-4b92-6efd-bee103d9151e64d13432"
 
 # Only 1 target can be specified for each Admin block extension
 [[extensions.targeting]]
-module = "./src/BlockExtension.jsx"
-target = "admin.product-details.block.render"
+module = "./src/BlockExtension.tsx"
+target = "admin.order-details.block.render"
 
 
 # Valid extension targets:

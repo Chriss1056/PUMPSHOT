@@ -29,3 +29,7 @@ scopes = "read_orders, read_all_orders, write_orders"
 
 [auth]
 redirect_urls = [ "https://pumpshot.shopify.scipnet.org/api/auth" ]
+
+[extensions.order-details-block]
+type = "ui_extension"
+target = "admin.order-details.block.render"
