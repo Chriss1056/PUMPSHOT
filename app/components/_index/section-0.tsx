@@ -234,7 +234,7 @@ export default function Index() {
     const value = event.currentTarget.value;
     const updatedData: Data = { ...data };
 
-    if (field == "invoiceDate" || field == "deliveryDate") {
+    if ((field == "invoiceDate" || field == "deliveryDate") && !(value == data.invoiceDate || value == data.deliveryDate)) {
       updatedData[field] = new Date(value).toLocaleDateString('de-at');
     } else {
       updatedData[field] = value;
