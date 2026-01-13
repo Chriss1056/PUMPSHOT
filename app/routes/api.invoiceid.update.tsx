@@ -72,8 +72,8 @@ export const action = async ({ request }: { request: Request }) => {
   const errors = updateData?.data?.metafieldsSet?.userErrors || [];
 
   if (errors.length > 0) {
-    return Response.json({ ok: false, errors }, { status: 400 });
+    return Response.json({ ok: false, errors }, { status: 400, headers: { 'Access-Control-Allow-Origin': 'https://extensions.shopifycdn.com' } });
   }
 
-  return Response.json({ ok: true });
+  return Response.json({ ok: true }, { headers: { 'Access-Control-Allow-Origin': 'https://extensions.shopifycdn.com' } });
 };

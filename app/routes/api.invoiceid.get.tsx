@@ -64,5 +64,5 @@ export const loader = async ({ request }: { request: Request }) => {
     metafield = createData?.data?.metafieldsSet?.metafields?.[0];
   }
 
-  return Response.json({ metafield });
+  return Response.json({ metafield }, { headers: { 'Access-Control-Allow-Origin': 'https://extensions.shopifycdn.com' } });
 };
