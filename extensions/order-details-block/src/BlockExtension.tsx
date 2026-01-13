@@ -1,9 +1,6 @@
 import {render} from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 
-const NAMESPACE = "pumpshot";
-const KEY = "invoice_id";
-
 export default async () => {
   render(<Extension />, document.body);
 }
@@ -13,38 +10,67 @@ function Extension() {
   const order_id = data.selected[0].id;
   
   const [loading, setLoading] = useState(true);
-  const [invoice_id, setInvoice_id] = useState();
+  const [invoice_id, setInvoice_id] = useState<string>('');
   
+  const getInvoiceId = async () => {
+    try {
+      const res = await fetch("api/invoiceid/get");
+      const id_data = await res.json();
+      setInvoice_id(id_data?.metafield?.value || "");
+    } catch (err) {
+      console.error("Failed to fetch invoice_id:", err);
+      return null;
+    }
+  };
+
   useEffect(() => {
-    (async function getOrderInfo() {
-      const query = {
-        query: `
-          query GetOrderMetafield($namespace: String!, $key: String!, $orderId: ID!) {
-            order(id: $orderId) {
-              metafield(namespace: $namespace, key: $key) {
-                value
-              }
-            }
-          }
-        `,
-        variables: {
-          namespace: NAMESPACE,
-          key: KEY,
-          orderId: order_id
-        }
-      };
-      const response = await fetch("shopify:admin/api/graphql.json", {
-        method: "POST",
-        body: JSON.stringify(query),
-      });
-      if (!response.ok) {
-        console.error("Network error");
-      }
-      const response_data = await response.json();
-      setInvoice_id(response_data?.data?.order?.metafield?.value);
+    (async () => {
+      await getInvoiceId();
       setLoading(false);
     })();
   }, [order_id]);
+
+  const handlePdfButton = async () => {
+    setLoading(true);
+    await generateInvoicePdf();
+    await getInvoiceId();
+    setLoading(false);
+  };
+
+  const generateInvoicePdf = async (): Promise<number> => {
+    try {
+      const response = await fetch('/api/invoicepdf/get', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ order_id: order_id }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        console.error('Failed to generate invoice:', error);
+        return 1;
+      }
+
+      const invoiceId = response.headers.get('X-Invoice-Id') || 'RE';
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Rechnung_${invoiceId}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      return 0;
+    } catch (error) {
+      console.error('Error generating invoice:', error);
+      return 1;
+    }
+  };
 
   if (loading) {
     return (
@@ -76,7 +102,7 @@ function Extension() {
               <s-text>{invoice_id}</s-text>
             </s-grid>
             <s-stack direction="inline" justifyContent="end">
-              <s-button variant="primary" icon="check" accessibilityLabel="PDF Generieren">PDF Generieren</s-button>
+              <s-button onClick={handlePdfButton} variant="primary" icon="check" accessibilityLabel="PDF Generieren">PDF Generieren</s-button>
             </s-stack>
           </s-stack>
         </s-box>
