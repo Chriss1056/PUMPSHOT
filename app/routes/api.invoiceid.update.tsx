@@ -4,7 +4,7 @@ const NAMESPACE = "pumpshot";
 const KEY = "invoice_id";
 
 export const action = async ({ request }: { request: Request }) => {
-  const { admin } = await authenticate.admin(request);
+  const { cors, admin } = await authenticate.admin(request);
 
   const body = await request.json();
   const { incommingValue } = body;
@@ -72,8 +72,8 @@ export const action = async ({ request }: { request: Request }) => {
   const errors = updateData?.data?.metafieldsSet?.userErrors || [];
 
   if (errors.length > 0) {
-    return Response.json({ ok: false, errors }, { status: 400, headers: { 'Access-Control-Allow-Origin': 'https://extensions.shopifycdn.com' } });
+    return cors(Response.json({ ok: false, errors }, { status: 400, }));
   }
 
-  return Response.json({ ok: true }, { headers: { 'Access-Control-Allow-Origin': 'https://extensions.shopifycdn.com' } });
+  return cors(Response.json({ ok: true }));
 };

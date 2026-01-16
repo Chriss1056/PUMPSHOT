@@ -9,21 +9,26 @@ function Extension() {
   const {data} = shopify;
   const order_id = data.selected[0].id;
   
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [invoice_id, setInvoice_id] = useState<string>('');
-  
-  const getInvoiceId = async () => {
-    try {
-      const res = await fetch("api/invoiceid/get");
-      const id_data = await res.json();
-      setInvoice_id(id_data?.metafield?.value || "");
-    } catch (err) {
-      console.error("Failed to fetch invoice_id:", err);
-      return null;
-    }
-  };
 
   useEffect(() => {
+    const getInvoiceId = async () => {
+      try {
+        const res = await fetch("api/invoiceid/order", {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ order_id: order_id }),
+        });
+        const id_data = await res.json();
+        setInvoice_id(id_data?.metafield?.value || "");
+      } catch (err) {
+        console.error("Failed to fetch invoice_id:", err);
+        return null;
+      }
+    };
     (async () => {
       await getInvoiceId();
       setLoading(false);
@@ -32,44 +37,7 @@ function Extension() {
 
   const handlePdfButton = async () => {
     setLoading(true);
-    await generateInvoicePdf();
-    await getInvoiceId();
-    setLoading(false);
-  };
-
-  const generateInvoicePdf = async (): Promise<number> => {
-    try {
-      const response = await fetch('/api/invoicepdf/get', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ order_id: order_id }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        console.error('Failed to generate invoice:', error);
-        return 1;
-      }
-
-      const invoiceId = response.headers.get('X-Invoice-Id') || 'RE';
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `Rechnung_${invoiceId}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-
-      return 0;
-    } catch (error) {
-      console.error('Error generating invoice:', error);
-      return 1;
-    }
+    open("apps/pumpshot/autorechnungsgenerator?order_id=" + order_id, "_self",);
   };
 
   if (loading) {

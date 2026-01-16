@@ -4,7 +4,7 @@ const NAMESPACE = "pumpshot";
 const KEY = "invoice_id";
 
 export const loader = async ({ request }: { request: Request }) => {
-  const { admin } = await authenticate.admin(request);
+  const { cors, admin } = await authenticate.admin(request);
 
   const query = `
     query GetInvoiceMetafield($namespace: String!, $key: String!) {
@@ -64,5 +64,5 @@ export const loader = async ({ request }: { request: Request }) => {
     metafield = createData?.data?.metafieldsSet?.metafields?.[0];
   }
 
-  return Response.json({ metafield }, { headers: { 'Access-Control-Allow-Origin': 'https://extensions.shopifycdn.com' } });
+  return cors(Response.json({ metafield }));
 };
