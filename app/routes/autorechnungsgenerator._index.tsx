@@ -25,8 +25,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 export default function Index() {  
   const { order_id } = useLoaderData<typeof loader>();
 
-  // headers required here
-
   (async () => {
     try {
       const response = await fetch('/api/invoicepdf/get', {
@@ -70,9 +68,21 @@ export default function Index() {
 
   return (
     <s-page heading="PUMPSHOT">
-      <s-banner heading="Development Notice" tone="warning">
-        This App is still under Development.
-      </s-banner>
+      <s-stack gap="base">
+        <s-box
+          padding="base"
+          background="base"
+          borderWidth="base"
+          borderColor="base"
+          borderRadius="base"
+        >
+          <s-section heading="Rechnungsgenerator">
+            <s-stack gap="base">
+              <s-text>Rechnungsgenerierung in arbeit, bitte warten...</s-text>
+            </s-stack>
+          </s-section>
+        </s-box>
+      </s-stack>
     </s-page>
   );
 }
