@@ -43,7 +43,7 @@ function Extension() {
         body: JSON.stringify({ order_id: order_id }),
       });
       const id_data = await res.json();
-      setInvoice_id(id_data?.metafield?.value || "");
+      setInvoice_id(id_data?.metafield?.value || "No Invoice Id provided!");
     } catch (err) {
       console.error("Failed to fetch invoice_id:", err);
       return null;

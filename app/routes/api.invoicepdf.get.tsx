@@ -60,7 +60,7 @@ const getInvoiceId = async (admin: AdminApiContext, order_id: string) => {
     metafield =  null;
   }
   
-  return metafield?.value;
+  return metafield?.value || "0000-00000";
 };
 
 const getCustomerData = async (admin: AdminApiContext, order_id: string) => {
