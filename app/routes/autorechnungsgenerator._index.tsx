@@ -27,17 +27,17 @@ export default function Index() {
 
   (async () => {
     try {
-      const response = await fetch('/api/invoicepdf/get', {
-        method: 'POST',
+      const response = await fetch("api/invoicepdf/get", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ order_id: order_id }),
       });
 
       if (!response.ok) {
         const error = await response.json();
-        console.error('Failed to generate invoice:', error);
+        console.error("Failed to generate invoice:", error);
         return 1;
       }
       

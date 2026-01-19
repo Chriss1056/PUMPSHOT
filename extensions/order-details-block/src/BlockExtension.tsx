@@ -1,37 +1,60 @@
 import {render} from 'preact';
 import { useEffect, useState } from 'preact/hooks';
 
+interface OrderQueryResponse {
+  order: {
+    sourceName: string;
+  } | null;
+}
+
 export default async () => {
   render(<Extension />, document.body);
 }
 
 function Extension() {
-  const {data} = shopify;
+  const {data, query} = shopify;
   const order_id = data.selected[0].id;
   
   const [loading, setLoading] = useState<boolean>(true);
+  const [allow_generation, setAllow_generation] = useState<boolean>(false);
   const [invoice_id, setInvoice_id] = useState<string>('');
 
-  useEffect(() => {
-    const getInvoiceId = async () => {
-      try {
-        const res = await fetch("api/invoiceid/order", {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ order_id: order_id }),
-        });
-        const id_data = await res.json();
-        setInvoice_id(id_data?.metafield?.value || "");
-      } catch (err) {
-        console.error("Failed to fetch invoice_id:", err);
-        return null;
+  const checkIfPOS = async () => {
+    const query_string = `
+      query OrderSource($orderId: ID!) {
+        order(id: $orderId) {
+          sourceName
+        }
       }
-    };
+    `;
+    const response = await query<OrderQueryResponse, { orderId: string }>(query_string, { variables: { orderId: order_id } });
+    if (response?.data?.order?.sourceName != "pos") {
+      setAllow_generation(true);
+    }
+  }
+
+  const getInvoiceId = async () => {
+    try {
+      const res = await fetch("api/invoiceid/order", {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ order_id: order_id }),
+      });
+      const id_data = await res.json();
+      setInvoice_id(id_data?.metafield?.value || "");
+    } catch (err) {
+      console.error("Failed to fetch invoice_id:", err);
+      return null;
+    }
+  };
+
+  useEffect(() => {
     (async () => {
       await getInvoiceId();
       setLoading(false);
+      await checkIfPOS();
     })();
   }, [order_id]);
 
@@ -63,15 +86,17 @@ function Extension() {
           <s-stack gap="base">
             <s-grid gridTemplateColumns="1fr auto">
               <s-text>Order ID:</s-text>
-              <s-text>{order_id}</s-text>
+              <s-text>{order_id.split('/').pop()}</s-text>
             </s-grid>
             <s-grid gridTemplateColumns="1fr auto">
               <s-text>Invoice ID:</s-text>
               <s-text>{invoice_id}</s-text>
             </s-grid>
+            {allow_generation && (
             <s-stack direction="inline" justifyContent="end">
               <s-button onClick={handlePdfButton} variant="primary" icon="check" accessibilityLabel="PDF Generieren">PDF Generieren</s-button>
             </s-stack>
+            )}
           </s-stack>
         </s-box>
       </s-stack>

@@ -6,6 +6,42 @@ declare namespace JSX {
   }
 }
 
+interface ShopifyAppItem {
+  id: string
+  name: string
+  quantity: number
+  originalTotalSet: {
+    shopMoney: {
+      amount: number
+      currencyCode: string
+    }
+  }
+  discountedTotalSet: {
+    shopMoney: {
+      amount: number
+      currencyCode: string
+    }
+  }
+  totalDiscountSet: {
+    shopMoney: {
+      amount: number
+      currencyCode: string
+    }
+  }
+  taxLines: {
+    title: string
+    rate: number
+    ratePercentage: number
+    channelLiable: string
+    priceSet: {
+      shopMoney: {
+        amount: number
+        currencyCode: string
+      }
+    }
+  }
+}
+
 interface Item {
   description: string;
   quantity: number;

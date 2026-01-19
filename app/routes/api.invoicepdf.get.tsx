@@ -63,30 +63,287 @@ const getInvoiceId = async (admin: AdminApiContext, order_id: string) => {
   return metafield?.value;
 };
 
+const getCustomerData = async (admin: AdminApiContext, order_id: string) => {
+  const query = `
+    query getCustomerData($orderId: ID!) {
+      order(id: $orderId) {
+        customer {
+          id
+          firstName
+          lastName
+          addressesV2(first: 1) {
+            nodes {
+              company
+              address1
+              address2
+              zip
+              city
+              province
+              provinceCode
+              country
+              countryCodeV2
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  const response = await admin.graphql(query, {
+    variables: { orderId: order_id },
+  });
+  const data = await response.json();
+
+  const customer = data?.data?.order?.customer;
+  const address = customer?.addressesV2.nodes?.[0];
+
+  const customer_id: string = (customer?.id ? customer?.id.split('/').pop() : 'No id provided!');
+  
+  let customer_name: string = '';
+  if (customer?.firstName && customer?.lastName) {
+    customer_name = customer?.firstName + " " + customer?.lastName;
+  } else if (address?.company) {
+    customer_name = address?.company;
+  } else {
+    customer_name = 'No name provided!';
+  }
+
+  const customer_address: string = (address?.address1 ? address?.address1 : 'No address provided!') + " " + (address?.address2 ? address?.address2 : '') + "\n" + (address?.zip ? address?.zip : 'No zip code provided!') + " " + (address?.city ? address?.city : 'No city provided!') + "\n" + (address?.country ? address?.country : 'No country provided!');
+
+  return ({
+    customer_id,
+    customer_name,
+    customer_address,
+  });
+};
+
+const getItemData = async (admin: AdminApiContext, order_id: string) => {
+  const query = `
+    query OrderLineItems($orderId: ID!) {
+      order(id: $orderId) {
+        id
+        name
+        currencyCode
+        lineItems(first: 250) {
+          nodes {
+            id
+            name
+            quantity
+            originalTotalSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+            }
+            discountedTotalSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+            }
+            totalDiscountSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+            }
+            taxLines(first: 10) {
+              title
+              rate
+              ratePercentage
+              channelLiable
+              priceSet {
+                shopMoney {
+                  amount
+                  currencyCode
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  const respone = await admin.graphql(query, {
+    variables: { orderId: order_id },
+  });
+  const data = await respone.json();
+
+  const items: Item[] = [];
+
+  data?.data?.order?.lineItems?.nodes.map((item: ShopifyAppItem) => {
+    const append_item: Item = {
+      description: item?.name || 'No name provided!',
+      quantity: Number(item?.quantity) || 0,
+      net: Number((item?.originalTotalSet?.shopMoney?.amount || 0) / (item?.quantity || 1)) || 0,
+      gross: Number((item?.originalTotalSet?.shopMoney?.amount || 0) * (1 + (item.taxLines.ratePercentage || 0) / 100)) || 0,
+      tax: Number(item?.taxLines?.ratePercentage) || 0,
+      allowDiscount: true,
+      discount: Number(((item?.totalDiscountSet?.shopMoney?.amount || 0) / ((item?.originalTotalSet?.shopMoney?.amount || 1) * (1 + (item?.taxLines?.ratePercentage || 1) / 100))) * 100) || 0,
+      lineTotalGross: Number(((item?.originalTotalSet?.shopMoney?.amount || 0) * (1 + (item?.taxLines?.ratePercentage || 0) / 100)) - (item?.totalDiscountSet?.shopMoney?.amount || 0)) || 0,
+      inputMode: 'none'
+    };
+    items.push(append_item);
+  });
+
+  return items;
+};
+
+const getTotalData = async (admin: AdminApiContext, order_id: string) => {
+  const query = `
+    query OrderTotals($orderId: ID!) {
+      order(id: $orderId) {
+        id
+        name
+        currencyCode
+        subtotalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        totalTaxSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        totalDiscountsSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        totalPriceSet {
+          shopMoney {
+            amount
+            currencyCode
+          }
+        }
+        taxLines {
+          title
+          rate
+          ratePercentage
+          channelLiable
+          priceSet {
+            shopMoney {
+              amount
+              currencyCode
+            }
+          }
+        }
+        discountApplications(first: 50) {
+          nodes {
+            targetType
+            allocationMethod
+            value {
+              __typename
+              ... on PricingPercentageValue {
+                percentage
+              }
+              ... on MoneyV2 {
+                amount
+                currencyCode
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  const respone = await admin.graphql(query, {
+    variables: { orderId: order_id },
+  });
+  const data = await respone.json();
+
+  const total: Total = {
+    totalNet: Number(data?.data?.order?.subtotalPriceSet?.shopMoney?.amount) || 0,
+    with20: Number(data?.data?.order?.taxLines?.rate) || 0,
+    with0: 0,
+    totalGross: Number(data?.data?.order?.totalPriceSet?.shopMoney?.amount) || 0
+  };
+
+  return total;
+};
+
+const getPaymentTypeAndHint = async (admin: AdminApiContext, order_id: string) => {
+  const query = `
+    query PaymentMethodForOrder($orderId: ID!) {
+      order(id: $orderId) {
+        id
+        name
+        transactions(first: 10) {
+          gateway
+          formattedGateway
+          status
+        }
+      }
+    }
+  `;
+
+  const response = await admin.graphql(query, {
+    variables: { orderId: order_id },
+  });
+  const data = await response.json();
+
+  const payment_type: string = data?.data?.order?.transactions?.gateway || "No Gateway provided!";
+  
+  const commonHint: string =
+  "\n\nSofern nicht anders angegeben, entspricht das Lieferdatum dem Rechnungsdatum.\n" +
+  "Es gelten unsere Allgemeinen Geschäftsbedingungen (AGB).\n" +
+  "Mit Entgegennahme der Ware erkennen Sie den Eigentumsvorbehalt bis zur vollständigen Bezahlung an.";
+
+  let specialHint: string = '';
+  if (payment_type === "onlinezahlung") {
+    specialHint = "Die Zahlung wurde bereits per Onlinezahlung beglichen. Bitte keinen weiteren Betrag überweisen.";
+  } else if (payment_type ===  "manual") {
+    specialHint =  "Die Zahlung wurde Manuell bestätigt."
+  } else if (payment_type === "cash") {
+    specialHint = "Die Zahlung wurde bar entgegengenommen.";
+  } else if (payment_type === "sumup") {
+    specialHint = "Die Zahlung wurde per Kartenzahlung (SumUp) abgewickelt.";
+  } else if (payment_type === "bank_deposit") {
+    specialHint = "Bitte überweisen Sie den Gesamtbetrag innerhalb von 7 Tagen auf das unten angegebene Konto.";
+  } else {
+    specialHint = "No Valid Payment Type provided: " + (payment_type || "Error!");
+  }
+
+  const hint: string = specialHint + commonHint;
+  return ({
+    paymentType:  payment_type,
+    hint: hint,
+  });
+}
+
 export const action = async ({ request }: { request: Request }) => {
   const { admin } = await authenticate.admin(request);
 
   const body = await request.json();
   const { order_id } = body;
 
-  const items: Item[] =  [];
-  const totals: Total =  {totalNet: 0, with20: 0, with0: 0, totalGross: 0};
+  const customer_data = await getCustomerData(admin, order_id);
+  const customer_payment = await getPaymentTypeAndHint(admin, order_id);
+
+  const items: Item[] = await getItemData(admin, order_id);
+  const totals: Total = await getTotalData(admin, order_id);
   const data: Data = {
-    orderNumber: '',
+    orderNumber: order_id.split('/').pop(),
     invoiceDate: new Date().toLocaleDateString('de-at'),
     deliveryDate: new Date().toLocaleDateString('de-at'),
-    paymenttype: '',
-    customerNumber: '',
+    paymenttype: customer_payment.paymentType,
+    customerNumber: customer_data.customer_id,
     refrence: '',
     contactPerson: 'Fabian Flotzinger',
     email: 'office@pumpshot.at',
-    customerName: '',
-    customerAddress: '',
+    customerName: customer_data.customer_name,
+    customerAddress: customer_data.customer_address,
     customerUID: '',
     company: 'PUMPSHOT GmbH',
     companyAddress: 'Sallet 6\n4762 St. Willibald\nÖsterreich',
     companyUID: 'ATU82402026',
-    hint: ''
+    hint: customer_payment.hint
   };
 
   const invoiceId =  await getInvoiceId(admin, order_id);
@@ -99,7 +356,6 @@ export const action = async ({ request }: { request: Request }) => {
   const doc = new jsPDF({ unit: 'pt', format: 'a4' });
   const width = doc.internal.pageSize.getWidth();
 
-  // Handle logo image if provided
   if (cachedLogo?.base64 && cachedLogo?.width && cachedLogo?.height) {
     let imgW = cachedLogo?.width;
     let imgH = cachedLogo?.height;

@@ -488,7 +488,7 @@ export default function Index() {
         borderColor="base"
         borderRadius="base"
       >
-        <s-section heading="Rechnungsafresse" padding="base">
+        <s-section heading="Rechnungsadresse" padding="base">
           <s-text-field onBlur={handleDataChange('customerName')} value={data.customerName} label="Name / Firma" placeholder="Max Mustermann / Muster GmbH" autocomplete="off" required></s-text-field>
           <s-text-area onBlur={handleDataChange('customerAddress')} value={data.customerAddress} label="Adresse" rows={3} placeholder={"Straße Hausnummer\nPLZ Ort\nLand"} autocomplete="off" required></s-text-area>
           <s-text-field onBlur={handleDataChange('customerUID')} value={data.customerUID} label="UID Kunde" placeholder="DE123456789" autocomplete="off"></s-text-field>
