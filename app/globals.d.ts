@@ -28,18 +28,20 @@ interface ShopifyAppItem {
       currencyCode: string
     }
   }
-  taxLines: {
-    title: string
-    rate: number
-    ratePercentage: number
-    channelLiable: string
-    priceSet: {
-      shopMoney: {
-        amount: number
-        currencyCode: string
+  taxLines: [
+    {
+      title: string
+      rate: number
+      ratePercentage: number
+      channelLiable: string
+      priceSet: {
+        shopMoney: {
+          amount: number
+          currencyCode: string
+        }
       }
     }
-  }
+  ]
 }
 
 interface Item {

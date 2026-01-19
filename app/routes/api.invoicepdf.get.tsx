@@ -177,11 +177,11 @@ const getItemData = async (admin: AdminApiContext, order_id: string) => {
       description: item?.name || 'No name provided!',
       quantity: Number(item?.quantity) || 0,
       net: Number((item?.originalTotalSet?.shopMoney?.amount || 0) / (item?.quantity || 1)) || 0,
-      gross: Number((item?.originalTotalSet?.shopMoney?.amount || 0) * (1 + (item.taxLines.ratePercentage || 0) / 100)) || 0,
-      tax: Number(item?.taxLines?.ratePercentage) || 0,
+      gross: Number((item?.originalTotalSet?.shopMoney?.amount || 0) * (1 + (item?.taxLines?.[0]?.ratePercentage || 0) / 100)) || 0,
+      tax: Number(item?.taxLines?.[0]?.ratePercentage) || 0,
       allowDiscount: true,
-      discount: Number(((item?.totalDiscountSet?.shopMoney?.amount || 0) / ((item?.originalTotalSet?.shopMoney?.amount || 1) * (1 + (item?.taxLines?.ratePercentage || 1) / 100))) * 100) || 0,
-      lineTotalGross: Number(((item?.originalTotalSet?.shopMoney?.amount || 0) * (1 + (item?.taxLines?.ratePercentage || 0) / 100)) - (item?.totalDiscountSet?.shopMoney?.amount || 0)) || 0,
+      discount: Number(((item?.totalDiscountSet?.shopMoney?.amount || 0) / ((item?.originalTotalSet?.shopMoney?.amount || 1) * (1 + (item?.taxLines?.[0]?.ratePercentage || 1) / 100))) * 100) || 0,
+      lineTotalGross: Number(((item?.originalTotalSet?.shopMoney?.amount || 0) * (1 + (item?.taxLines?.[0]?.ratePercentage || 0) / 100)) - (item?.totalDiscountSet?.shopMoney?.amount || 0)) || 0,
       inputMode: 'none'
     };
     items.push(append_item);
@@ -253,14 +253,14 @@ const getTotalData = async (admin: AdminApiContext, order_id: string) => {
     }
   `;
 
-  const respone = await admin.graphql(query, {
+  const response = await admin.graphql(query, {
     variables: { orderId: order_id },
   });
-  const data = await respone.json();
+  const data = await response.json();
 
   const total: Total = {
     totalNet: Number(data?.data?.order?.subtotalPriceSet?.shopMoney?.amount) || 0,
-    with20: Number(data?.data?.order?.taxLines?.rate) || 0,
+    with20: Number(data?.data?.order?.taxLines?.[0]?.priceSet?.shopMoney?.amount) || 0,
     with0: 0,
     totalGross: Number(data?.data?.order?.totalPriceSet?.shopMoney?.amount) || 0
   };
