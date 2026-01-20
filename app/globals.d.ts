@@ -10,6 +10,7 @@ interface ShopifyAppItem {
   id: string
   name: string
   quantity: number
+  taxable: boolean
   originalTotalSet: {
     shopMoney: {
       amount: number

@@ -129,6 +129,7 @@ const getItemData = async (admin: AdminApiContext, order_id: string) => {
             id
             name
             quantity
+            taxable
             originalTotalSet {
               shopMoney {
                 amount
@@ -173,12 +174,13 @@ const getItemData = async (admin: AdminApiContext, order_id: string) => {
   const items: Item[] = [];
 
   data?.data?.order?.lineItems?.nodes.map((item: ShopifyAppItem) => {
+    const tax_factor = item?.taxable ? (1 + (item?.taxLines?.[0]?.ratePercentage || 0) / 100) : 1;
     const append_item: Item = {
       description: item?.name || 'No name provided!',
       quantity: Number(item?.quantity) || 0,
-      net: Number(((item?.originalTotalSet?.shopMoney?.amount || 0) / (1 + (item?.taxLines?.[0]?.ratePercentage || 0) / 100))) / (item?.quantity || 1) || 0,
+      net: Number(((item?.originalTotalSet?.shopMoney?.amount || 0) / tax_factor)) / (item?.quantity || 1) || 0,
       gross: Number((item?.originalTotalSet?.shopMoney?.amount || 0) / (item?.quantity || 1)) || 0,
-      tax: Number(item?.taxLines?.[0]?.ratePercentage) || 0,
+      tax: Number((tax_factor - 1) * 100) || 0,
       allowDiscount: true,
       discount: Number(((item?.totalDiscountSet?.shopMoney?.amount || 0) / (item?.originalTotalSet?.shopMoney?.amount || 1)) * 100) || 0,
       lineTotalGross: Number((item?.originalTotalSet?.shopMoney?.amount || 0) - (item?.totalDiscountSet?.shopMoney?.amount || 0)) || 0,
