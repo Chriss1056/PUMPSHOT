@@ -117,6 +117,43 @@ const getCustomerData = async (admin: AdminApiContext, order_id: string) => {
   });
 };
 
+const addShipping = async (admin: AdminApiContext, order_id: string) => {
+  const query = `
+    query OrderShippingRates($orderId: ID!) {
+      order(id: $orderId) {
+        shippingLines(first: 10) {
+          nodes {
+            originalPriceSet {
+              shopMoney {
+                amount
+                currencyCode
+              }
+            }
+          }
+        }
+      }
+    }
+  `;
+
+  const response = await admin.graphql(query, {
+    variables: { orderId: order_id },
+  });
+  const data = await response.json();
+
+  const shipping: Item = {
+    description: 'Versand',
+    quantity: 1,
+    net: Number(data?.data?.order?.shippingLines?.nodes?.[0]?.originalPriceSet?.shopMoney?.amount) || 0,
+    gross: Number(data?.data?.order?.shippingLines?.nodes?.[0]?.originalPriceSet?.shopMoney?.amount) || 0,
+    tax: 0,
+    allowDiscount: false,
+    discount: 0,
+    lineTotalGross: Number(data?.data?.order?.shippingLines?.nodes?.[0]?.originalPriceSet?.shopMoney?.amount) || 0,
+    inputMode: 'none'
+  };
+  return shipping;
+}
+
 const getItemData = async (admin: AdminApiContext, order_id: string) => {
   const query = `
     query OrderLineItems($orderId: ID!) {
@@ -188,6 +225,8 @@ const getItemData = async (admin: AdminApiContext, order_id: string) => {
     };
     items.push(append_item);
   });
+  
+  items.push(await addShipping(admin, order_id));
 
   return items;
 };
@@ -270,55 +309,6 @@ const getTotalData = async (admin: AdminApiContext, order_id: string) => {
   return total;
 };
 
-const getPaymentTypeAndHint = async (admin: AdminApiContext, order_id: string) => {
-  const query = `
-    query PaymentMethodForOrder($orderId: ID!) {
-      order(id: $orderId) {
-        id
-        name
-        transactions(first: 10) {
-          gateway
-          formattedGateway
-          status
-        }
-      }
-    }
-  `;
-
-  const response = await admin.graphql(query, {
-    variables: { orderId: order_id },
-  });
-  const data = await response.json();
-
-  const payment_type: string = data?.data?.order?.transactions?.gateway || "No Gateway provided!";
-  
-  const commonHint: string =
-  "\n\nSofern nicht anders angegeben, entspricht das Lieferdatum dem Rechnungsdatum.\n" +
-  "Es gelten unsere Allgemeinen Geschäftsbedingungen (AGB).\n" +
-  "Mit Entgegennahme der Ware erkennen Sie den Eigentumsvorbehalt bis zur vollständigen Bezahlung an.";
-
-  let specialHint: string = '';
-  if (payment_type === "onlinezahlung") {
-    specialHint = "Die Zahlung wurde bereits per Onlinezahlung beglichen. Bitte keinen weiteren Betrag überweisen.";
-  } else if (payment_type ===  "manual") {
-    specialHint =  "Die Zahlung wurde Manuell bestätigt."
-  } else if (payment_type === "cash") {
-    specialHint = "Die Zahlung wurde bar entgegengenommen.";
-  } else if (payment_type === "sumup") {
-    specialHint = "Die Zahlung wurde per Kartenzahlung (SumUp) abgewickelt.";
-  } else if (payment_type === "bank_deposit") {
-    specialHint = "Bitte überweisen Sie den Gesamtbetrag innerhalb von 7 Tagen auf das unten angegebene Konto.";
-  } else {
-    specialHint = "No Valid Payment Type provided: " + (payment_type || "Error!");
-  }
-
-  const hint: string = specialHint + commonHint;
-  return ({
-    paymentType:  payment_type,
-    hint: hint,
-  });
-}
-
 export const action = async ({ request }: { request: Request }) => {
   const { admin } = await authenticate.admin(request);
 
@@ -326,7 +316,12 @@ export const action = async ({ request }: { request: Request }) => {
   const { order_id } = body;
 
   const customer_data = await getCustomerData(admin, order_id);
-  const customer_payment = await getPaymentTypeAndHint(admin, order_id);
+
+  const hint: string =
+  "Die Zahlung wurde bereits per Onlinezahlung beglichen. Bitte keinen weiteren Betrag überweisen.\n\n" +
+  "Sofern nicht anders angegeben, entspricht das Lieferdatum dem Rechnungsdatum.\n" +
+  "Es gelten unsere Allgemeinen Geschäftsbedingungen (AGB).\n" +
+  "Mit Entgegennahme der Ware erkennen Sie den Eigentumsvorbehalt bis zur vollständigen Bezahlung an.";
 
   const items: Item[] = await getItemData(admin, order_id);
   const totals: Total = await getTotalData(admin, order_id);
@@ -334,7 +329,7 @@ export const action = async ({ request }: { request: Request }) => {
     orderNumber: order_id.split('/').pop(),
     invoiceDate: new Date().toLocaleDateString('de-at'),
     deliveryDate: new Date().toLocaleDateString('de-at'),
-    paymenttype: customer_payment.paymentType,
+    paymenttype: 'Onlinezahlung',
     customerNumber: customer_data.customer_id,
     refrence: '',
     contactPerson: 'Fabian Flotzinger',
@@ -345,7 +340,7 @@ export const action = async ({ request }: { request: Request }) => {
     company: 'PUMPSHOT GmbH',
     companyAddress: 'Sallet 6\n4762 St. Willibald\nÖsterreich',
     companyUID: 'ATU82402026',
-    hint: customer_payment.hint
+    hint: hint
   };
 
   const invoiceId =  await getInvoiceId(admin, order_id);
