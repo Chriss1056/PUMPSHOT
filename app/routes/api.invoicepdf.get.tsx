@@ -176,12 +176,12 @@ const getItemData = async (admin: AdminApiContext, order_id: string) => {
     const append_item: Item = {
       description: item?.name || 'No name provided!',
       quantity: Number(item?.quantity) || 0,
-      net: Number((item?.originalTotalSet?.shopMoney?.amount || 0) / (item?.quantity || 1)) || 0,
-      gross: Number((item?.originalTotalSet?.shopMoney?.amount || 0) * (1 + (item?.taxLines?.[0]?.ratePercentage || 0) / 100)) || 0,
+      net: Number(((item?.originalTotalSet?.shopMoney?.amount || 0) / (1 + (item?.taxLines?.[0]?.ratePercentage || 0) / 100))) / (item?.quantity || 1) || 0,
+      gross: Number((item?.originalTotalSet?.shopMoney?.amount || 0) / (item?.quantity || 1)) || 0,
       tax: Number(item?.taxLines?.[0]?.ratePercentage) || 0,
       allowDiscount: true,
-      discount: Number(((item?.totalDiscountSet?.shopMoney?.amount || 0) / ((item?.originalTotalSet?.shopMoney?.amount || 1) * (1 + (item?.taxLines?.[0]?.ratePercentage || 1) / 100))) * 100) || 0,
-      lineTotalGross: Number(((item?.originalTotalSet?.shopMoney?.amount || 0) * (1 + (item?.taxLines?.[0]?.ratePercentage || 0) / 100)) - (item?.totalDiscountSet?.shopMoney?.amount || 0)) || 0,
+      discount: Number(((item?.totalDiscountSet?.shopMoney?.amount || 0) / (item?.originalTotalSet?.shopMoney?.amount || 1)) * 100) || 0,
+      lineTotalGross: Number((item?.originalTotalSet?.shopMoney?.amount || 0) - (item?.totalDiscountSet?.shopMoney?.amount || 0)) || 0,
       inputMode: 'none'
     };
     items.push(append_item);

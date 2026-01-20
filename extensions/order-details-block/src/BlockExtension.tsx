@@ -56,7 +56,7 @@ function Extension() {
       setLoading(false);
       await checkIfPOS();
     })();
-  }, [order_id]);
+  });
 
   const handlePdfButton = async () => {
     setLoading(true);
@@ -93,9 +93,9 @@ function Extension() {
               <s-text>{invoice_id}</s-text>
             </s-grid>
             {allow_generation && (
-            <s-stack direction="inline" justifyContent="end">
-              <s-button onClick={handlePdfButton} variant="primary" icon="check" accessibilityLabel="PDF Generieren">PDF Generieren</s-button>
-            </s-stack>
+              <s-stack direction="inline" justifyContent="end">
+                <s-button onClick={handlePdfButton} variant="primary" icon="check" accessibilityLabel="PDF Generieren">PDF Generieren</s-button>
+              </s-stack>
             )}
           </s-stack>
         </s-box>
