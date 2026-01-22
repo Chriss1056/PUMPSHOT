@@ -5,6 +5,7 @@ import { autoTable } from 'jspdf-autotable';
 
 export default function Index() {
   const [img, setImg] = useState<HTMLImageElement | null>(null);
+  const [qr, setQr] = useState<HTMLImageElement | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [totals, setTotals] = useState<Total>({totalNet: 0, with20: 0, with0: 0, totalGross: 0});
   const [invoice_id, setInvoiceId] = useState<string>('');
@@ -34,6 +35,10 @@ export default function Index() {
       image.src = 'logo.png';
       await image.decode();
       setImg(image);
+      const qr = new Image();
+      qr.src = 'qrcode.png';
+      await qr.decode();
+      setQr(qr);
     })();
   }, []);
 
@@ -258,8 +263,12 @@ export default function Index() {
     if (img == null) {
       return 1;
     }
+    if (qr == null) {
+      return 1;
+    }
     const doc = new jsPDF({unit: 'pt', format: 'a4'});
     const width = doc.internal.pageSize.getWidth();
+    const height = doc.internal.pageSize.getHeight();
 
     let imgWidth = img.width;
     let imgHeight = img.height;
@@ -267,6 +276,14 @@ export default function Index() {
       const scale = 170 / imgWidth;
       imgWidth = 170;
       imgHeight *= scale;
+    }
+
+    let qrWidth = qr.width;
+    let qrHeight = qr.height;
+    if (qrWidth > 70) {
+      const scale = 70 / qrWidth;
+      qrWidth = 70;
+      qrHeight *= scale;
     }
 
     doc.setFont('helvetica', 'bold');
@@ -396,7 +413,7 @@ export default function Index() {
     if (hasCustomerUID && taxZero) {
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(100);
-      doc.text('Reverse Charge – Steuerschuld geht auf den Leistungsempfänger über (Art. 196 MwStSystRL).', 40, ty);
+      doc.text('Reverse Charge - Steuerschuld geht auf den Leistungsempfänger über (Art. 196 MwStSystRL).', 40, ty);
       doc.setTextColor(0);
     }
 
@@ -417,8 +434,10 @@ export default function Index() {
     doc.text('PUMPSHOT GmbH · pumpshotenergy.com · Sallet 6 · 4762 St. Willibald · Österreich', 40, footerY);
     doc.text('Tel: 06503903663 · E-Mail: office@pumpshot.at · Web: www.pumpshotenergy.com', 40, footerY + 12);
     doc.text('Amtsgericht: Landesgericht Ried · FN-Nr.: FN658945M · USt-ID: ATU82402026 · St-Nr.: 41356/4923', 40, footerY + 24);
-    doc.text('Bank: Raiffeisenbank · IBAN: AT123445500005032271 · BIC: RZOOAT2L455', 40, footerY + 36);
+    doc.text('Bank: Raiffeisenbank · IBAN: AT12 3445 5000 0503 2271 · BIC: RZOOAT2L455', 40, footerY + 36);
     doc.setTextColor(0);
+
+    doc.addImage(qr, "PNG", width - qrWidth - 20, height - qrHeight - 10, qrWidth, qrHeight);
 
     const file = `Rechnung_${invoice_id || 'RE'}.pdf`;
     doc.save(file);
@@ -626,7 +645,7 @@ export default function Index() {
         PUMPSHOT GmbH &middot; pumpshot.at &middot; Sallet 6 &middot; 4762 St. Willibald &middot; Österreich<br/>
         Tel: <s-link href="tel:+436503903663">+43 650 3903663</s-link> &middot; E-Mail: <s-link href="mailto:office@pumpshot.at">office@pumpshot.at</s-link> &middot; Web: <s-link href="https://pumpshotenergy.com" target="_blank">pumpshotenergy.com</s-link><br/>
         Amtsgericht: Landesgericht Ried &middot; FN-Nr.: FN658945M &middot; USt-ID: ATU82402026 &middot; St-Nr.: 41356/4923<br/>
-        Bank: Raiffeisenbank &middot; IBAN: AT123445500005032271 &middot; BIC: RZOOAT2L455
+        Bank: Raiffeisenbank &middot; IBAN: AT12 3445 5000 0503 2271 &middot; BIC: RZOOAT2L455
       </s-paragraph>
     </s-box>
   </s-stack>
