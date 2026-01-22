@@ -231,13 +231,14 @@ const getItemData = async (admin: AdminApiContext, order_id: string) => {
   return items;
 };
 
-const getTotalData = async (admin: AdminApiContext, order_id: string) => {
+const getTotalData = async (admin: AdminApiContext, order_id: string, items: Item[]) => {
   const query = `
     query OrderTotals($orderId: ID!) {
       order(id: $orderId) {
         id
         name
         currencyCode
+        taxesIncluded
         subtotalPriceSet {
           shopMoney {
             amount
@@ -299,11 +300,24 @@ const getTotalData = async (admin: AdminApiContext, order_id: string) => {
   });
   const data = await response.json();
 
+  let reduce = 0;
+  items.map((item: Item) => {
+    if (item.tax == 0) {
+      reduce += item.lineTotalGross;
+    }
+  })
+
+  const tax_rate = data?.data?.order?.taxLines?.[0]?.rate / (1 + data?.data?.order?.taxLines?.[0]?.rate);
+  const total_gross = data?.data?.order?.totalPriceSet?.shopMoney?.amount;
+  const with20 = (total_gross - reduce) * tax_rate;
+  const discount = data?.data?.order?.totalDiscountsSet?.shopMoney?.amount;
+
   const total: Total = {
-    totalNet: Number(data?.data?.order?.subtotalPriceSet?.shopMoney?.amount) || 0,
-    with20: Number(data?.data?.order?.taxLines?.[0]?.priceSet?.shopMoney?.amount) || 0,
+    totalNet: Number(total_gross - with20) || 0,
+    discount: Number(discount) || 0,
+    with20: Number(with20) || 0,
     with0: 0,
-    totalGross: Number(data?.data?.order?.totalPriceSet?.shopMoney?.amount) || 0
+    totalGross: Number(total_gross) || 0
   };
 
   return total;
@@ -324,7 +338,7 @@ export const action = async ({ request }: { request: Request }) => {
   "Mit Entgegennahme der Ware erkennen Sie den Eigentumsvorbehalt bis zur vollständigen Bezahlung an.";
 
   const items: Item[] = await getItemData(admin, order_id);
-  const totals: Total = await getTotalData(admin, order_id);
+  const totals: Total = await getTotalData(admin, order_id, items);
   const data: Data = {
     orderNumber: order_id.split('/').pop(),
     invoiceDate: new Date().toLocaleDateString('de-at'),
@@ -453,7 +467,7 @@ export const action = async ({ request }: { request: Request }) => {
 
   const finY = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 30;
   const boxW = 240;
-  const boxH = 85;
+  const boxH = 101;
   const boxX = doc.internal.pageSize.getWidth() - boxW - 40;
   const boxY = finY;
 
@@ -465,6 +479,10 @@ export const action = async ({ request }: { request: Request }) => {
   doc.setFontSize(10);
   doc.text('Gesamtbetrag netto', boxX + 10, ty);
   doc.text(`${totals.totalNet.toFixed(2)} €`, boxX + boxW - 10, ty, { align: 'right' });
+  ty += 16;
+
+  doc.text('Bestellrabatt', boxX + 10, ty);
+  doc.text(`- ${totals.discount.toFixed(2)} €`, boxX + boxW - 10, ty, { align: 'right' });
   ty += 16;
 
   doc.text('zzgl. Umsatzsteuer 20%', boxX + 10, ty);

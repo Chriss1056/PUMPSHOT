@@ -7,7 +7,7 @@ export default function Index() {
   const [img, setImg] = useState<HTMLImageElement | null>(null);
   const [qr, setQr] = useState<HTMLImageElement | null>(null);
   const [items, setItems] = useState<Item[]>([]);
-  const [totals, setTotals] = useState<Total>({totalNet: 0, with20: 0, with0: 0, totalGross: 0});
+  const [totals, setTotals] = useState<Total>({totalNet: 0, discount: 0, with20: 0, with0: 0, totalGross: 0});
   const [invoice_id, setInvoiceId] = useState<string>('');
   const [data, setData] = useState<Data>({
     orderNumber: '',
@@ -44,9 +44,9 @@ export default function Index() {
 
   useEffect(() => {
     if (items.length == 0) {
-      setTotals({totalNet: 0, with20: 0, with0: 0, totalGross: 0});
+      setTotals({totalNet: 0, discount: 0, with20: 0, with0: 0, totalGross: 0});
     }
-    const newTotals: Total = {totalNet: 0, with20: 0, with0: 0, totalGross: 0};
+    const newTotals: Total = {totalNet: 0, discount: 0, with20: 0, with0: 0, totalGross: 0};
     items.forEach((item) => {
       const tax = item.tax;
       const total = item.lineTotalGross;

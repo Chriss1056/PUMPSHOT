@@ -59,6 +59,7 @@ interface Item {
 
 interface Total {
   totalNet: number;
+  discount: number;
   with20: number;
   with0: number;
   totalGross: number;
