@@ -143,9 +143,9 @@ const addShipping = async (admin: AdminApiContext, order_id: string) => {
   const shipping: Item = {
     description: 'Versand',
     quantity: 1,
-    net: Number(data?.data?.order?.shippingLines?.nodes?.[0]?.originalPriceSet?.shopMoney?.amount) || 0,
+    net: Number(data?.data?.order?.shippingLines?.nodes?.[0]?.originalPriceSet?.shopMoney?.amount / 1.2) || 0,
     gross: Number(data?.data?.order?.shippingLines?.nodes?.[0]?.originalPriceSet?.shopMoney?.amount) || 0,
-    tax: 0,
+    tax: 20,
     allowDiscount: false,
     discount: 0,
     lineTotalGross: Number(data?.data?.order?.shippingLines?.nodes?.[0]?.originalPriceSet?.shopMoney?.amount) || 0,
@@ -302,10 +302,10 @@ const getTotalData = async (admin: AdminApiContext, order_id: string, items: Ite
 
   let reduce = 0;
   items.map((item: Item) => {
-    if (item.tax == 0) {
+    if ((item.tax == 0) && (item.description != "Versand")) {
       reduce += item.lineTotalGross;
     }
-  })
+  });
 
   const tax_rate = data?.data?.order?.taxLines?.[0]?.rate / (1 + data?.data?.order?.taxLines?.[0]?.rate);
   const total_gross = data?.data?.order?.totalPriceSet?.shopMoney?.amount;
@@ -532,33 +532,14 @@ export const action = async ({ request }: { request: Request }) => {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(90);
-  doc.text(
-    'PUMPSHOT GmbH · pumpshotenergy.com · Sallet 6 · 4762 St. Willibald · Österreich',
-    40,
-    footerY
-  );
-  doc.text(
-    'Tel: 06503903663 · E-Mail: office@pumpshot.at · Web: www.pumpshotenergy.com',
-    40,
-    footerY + 12
-  );
-  doc.text(
-    'Amtsgericht: Landesgericht Ried · FN-Nr.: FN658945M · USt-ID: ATU82402026 · St-Nr.: 41356/4923',
-    40,
-    footerY + 24
-  );
-  doc.text(
-    'Bank: Raiffeisenbank · IBAN: AT123445500005032271 · BIC: RZOOAT2L455',
-    40,
-    footerY + 36
-  );
+  doc.text('PUMPSHOT GmbH · pumpshotenergy.com · Sallet 6 · 4762 St. Willibald · Österreich', 40, footerY);
+  doc.text('Tel: 06503903663 · E-Mail: office@pumpshot.at · Web: www.pumpshotenergy.com', 40, footerY + 12);
+  doc.text('Amtsgericht: Landesgericht Ried · FN-Nr.: FN658945M · USt-ID: ATU82402026 · St-Nr.: 41356/4923', 40, footerY + 24);
+  doc.text('Bank: Raiffeisenbank · IBAN: AT12 3445 5000 0503 2271 · BIC: RZOOAT2L455', 40, footerY + 36);
   doc.setTextColor(0);
 
-  // Convert to Buffer instead of saving to file
   const pdfOutput = doc.output('arraybuffer');
-  return new Response(
-    Buffer.from(pdfOutput)
-  , {
+  return new Response(Buffer.from(pdfOutput), {
     headers: {
       'Content-Disposition': 'Attachment',
       'Access-Control-Allow-Origin': 'https://extensions.shopifycdn.com',
