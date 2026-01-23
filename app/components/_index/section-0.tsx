@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
 import { CallbackEvent } from "@shopify/polaris-types";
+import QRCode from 'qrcode';
 import { jsPDF } from 'jspdf';
 import { autoTable } from 'jspdf-autotable';
 
 export default function Index() {
   const [img, setImg] = useState<HTMLImageElement | null>(null);
-  const [qr, setQr] = useState<HTMLImageElement | null>(null);
   const [items, setItems] = useState<Item[]>([]);
   const [totals, setTotals] = useState<Total>({totalNet: 0, discount: 0, with20: 0, with0: 0, totalGross: 0});
   const [invoice_id, setInvoiceId] = useState<string>('');
@@ -35,10 +35,6 @@ export default function Index() {
       image.src = 'logo.png';
       await image.decode();
       setImg(image);
-      const qr = new Image();
-      qr.src = 'qrcode.png';
-      await qr.decode();
-      setQr(qr);
     })();
   }, []);
 
@@ -263,9 +259,6 @@ export default function Index() {
     if (img == null) {
       return 1;
     }
-    if (qr == null) {
-      return 1;
-    }
     const doc = new jsPDF({unit: 'pt', format: 'a4'});
     const width = doc.internal.pageSize.getWidth();
     const height = doc.internal.pageSize.getHeight();
@@ -278,6 +271,18 @@ export default function Index() {
       imgHeight *= scale;
     }
 
+    const amount = totals.totalGross.toFixed(2);
+    const refrence = String(invoice_id);
+
+    const qrData = "BCD\n2\n2\nSCT\n\nPUMPSHOT GmbH\nAT123445500005032271\n" + amount + "\nGDDS\n\n" + refrence + "\n";
+    const qrCodeDataUrl = await QRCode.toDataURL(qrData, {
+      errorCorrectionLevel: 'H',
+      width: 370,
+      margin: 2
+    });
+    const qr = new Image();
+    qr.src = qrCodeDataUrl;
+    await qr.decode();
     let qrWidth = qr.width;
     let qrHeight = qr.height;
     if (qrWidth > 70) {
