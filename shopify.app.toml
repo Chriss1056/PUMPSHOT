@@ -25,7 +25,7 @@ api_version = "2025-10"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "read_orders, read_all_orders, write_orders, read_customers"
+scopes = "read_orders, read_all_orders, write_orders, read_customers, read_reports"
 
 [auth]
 redirect_urls = [ "https://pumpshot.shopify.scipnet.org/api/auth" ]
