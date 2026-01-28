@@ -14,7 +14,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export default function Index() {
-  const tabs = ['Rechnungsgenerator', 'Tab2'];
+  const tabs = ['Übersicht', 'Rechnungsgenerator'];
 
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const activeTab = tabs[activeTabIndex];
@@ -30,9 +30,6 @@ export default function Index() {
 
   return (
     <s-page heading="PUMPSHOT">
-      <s-banner heading="Development Notice" tone="warning">
-        This App is still under Development.
-      </s-banner>
       <s-stack gap="base">
         <s-stack direction="inline" gap="base">
           {tabs.map((tab, index) => (
