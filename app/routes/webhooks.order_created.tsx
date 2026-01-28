@@ -15,6 +15,28 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   let data = null;
   let errors = null;
 
+  const order_gid = payload.admin_graphql_api_id;
+  
+  query = `
+    query OrderSource($orderId: ID!) {
+      order(id: $orderId) {
+        sourceName
+      }
+    }
+  `;
+  response = await admin.graphql(query, {
+    variables: { orderId: order_gid }
+  });
+  data = await response.json();
+  query = null;
+  response = null;
+  if (data?.data?.order?.sourceName == "pos") {
+    data = null;
+    return Response.json({ ok: true });
+  }
+  data = null;
+
+
   query = `
     query GetShopId {
       shop {
@@ -47,8 +69,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   query = null;
   response = null;
   data = null;
-
-  const order_gid = payload.admin_graphql_api_id;
 
   query = `
     mutation SetOrderMetafield($namespace: String!, $key: String!, $orderId: ID!, $value: String!) {
