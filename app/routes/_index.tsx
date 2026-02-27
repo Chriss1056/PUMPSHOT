@@ -14,7 +14,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export default function Index() {
-  const tabs = ['Übersicht', 'Rechnungsgenerator'];
+  const tabs = ['Rechnungsgenerator', 'Kassenbuch'];
 
   const [activeTabIndex, setActiveTabIndex] = useState(0);
   const activeTab = tabs[activeTabIndex];

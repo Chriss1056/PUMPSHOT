@@ -82,3 +82,20 @@ interface Data {
   companyUID: string;
   hint: string;
 }
+
+interface Entry {
+  date: string;
+  invoiceid: string;
+  description: string;
+  input: number;
+  output: number;
+  type: string;
+  endbalance: number;
+  invoice: boolean;
+}
+
+interface Meta {
+  bar: number;
+  sumup: number;
+  total: number;
+}
