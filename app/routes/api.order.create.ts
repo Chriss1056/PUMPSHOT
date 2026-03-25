@@ -3,7 +3,7 @@ import { authenticate } from "../shopify.server";
 
 // ——— Helpers ———
 
-function moneyBag(amount: number, currencyCode = "EUR") {
+function moneyBag(amount: number, currencyCode: string) {
   const m = { amount: amount.toFixed(2), currencyCode };
   return { shopMoney: m, presentmentMoney: m };
 }
@@ -17,7 +17,7 @@ function parseAddress(customerName: string, customerAddress: string) {
 
   const address1 = lines[0] || "";
   const cityLine = lines[1] || "";
-  const countryLine = (lines[2] || "").toLowerCase();
+  const countryLine = (lines[2] || "").toLowerCase().trim();
 
   const zipMatch = cityLine.match(/^(\d{4,5})\s+(.+)$/);
 
@@ -34,7 +34,51 @@ function parseAddress(customerName: string, customerAddress: string) {
     france: "FR",
     niederlande: "NL",
     netherlands: "NL",
+    spanien: "ES",
+    spain: "ES",
+    tschechien: "CZ",
+    "czech republic": "CZ",
+    czechia: "CZ",
+    ungarn: "HU",
+    hungary: "HU",
+    slowenien: "SI",
+    slovenia: "SI",
+    slowakei: "SK",
+    slovakia: "SK",
+    polen: "PL",
+    poland: "PL",
+    belgien: "BE",
+    belgium: "BE",
+    luxemburg: "LU",
+    luxembourg: "LU",
+    dänemark: "DK",
+    denmark: "DK",
+    schweden: "SE",
+    sweden: "SE",
+    norwegen: "NO",
+    norway: "NO",
+    finnland: "FI",
+    finland: "FI",
+    portugal: "PT",
+    griechenland: "GR",
+    greece: "GR",
+    irland: "IE",
+    ireland: "IE",
+    kroatien: "HR",
+    croatia: "HR",
+    rumänien: "RO",
+    romania: "RO",
+    bulgarien: "BG",
+    bulgaria: "BG",
   };
+
+  const resolved = countryMap[countryLine];
+
+  if (!resolved && countryLine.length > 0) {
+    console.warn(
+      `Unknown country "${countryLine}" in address for "${customerName}". Falling back to "AT".`,
+    );
+  }
 
   return {
     firstName: nameParts[0] || "",
@@ -42,8 +86,27 @@ function parseAddress(customerName: string, customerAddress: string) {
     address1,
     zip: zipMatch?.[1] || "",
     city: zipMatch?.[2] || cityLine,
-    countryCode: countryMap[countryLine] || "AT",
+    countryCode: resolved || "AT",
   };
+}
+
+function parseDate(input: string): string {
+  // Already ISO format (YYYY-MM-DD or full ISO string)
+  if (/^\d{4}-\d{2}-\d{2}/.test(input)) {
+    const d = new Date(input);
+    if (!isNaN(d.getTime())) return d.toISOString();
+  }
+
+  // European format: DD.MM.YYYY or DD/MM/YYYY or DD-MM-YYYY
+  const match = input.match(/^(\d{1,2})[./\-](\d{1,2})[./\-](\d{4})$/);
+  if (match) {
+    const [, day, month, year] = match;
+    const d = new Date(`${year}-${month.padStart(2, "0")}-${day.padStart(2, "0")}T00:00:00Z`);
+    if (!isNaN(d.getTime())) return d.toISOString();
+  }
+
+  console.warn(`Could not parse date "${input}", falling back to now.`);
+  return new Date().toISOString();
 }
 
 function mapFinancialStatus(paymentType: string): "PAID" | "PENDING" {
@@ -51,11 +114,21 @@ function mapFinancialStatus(paymentType: string): "PAID" | "PENDING" {
   return paidTypes.includes(paymentType.toLowerCase()) ? "PAID" : "PENDING";
 }
 
+function mapGateway(paymentType: string): string {
+  const map: Record<string, string> = {
+    onlinezahlung: "shopify_payments",
+    bar: "cash",
+    sumup: "sumup",
+  };
+  return map[paymentType.toLowerCase()] || "manual";
+}
+
 function buildOrderInput(
   items: Item[],
   totals: Total,
   data: Data,
   invoiceId: string,
+  shopCurrency: string,
 ) {
   const lineItems = items.map((item) => {
     const discountFactor =
@@ -65,16 +138,21 @@ function buildOrderInput(
 
     const effectiveUnitNet = +(item.net * discountFactor).toFixed(2);
     const taxRate = item.tax / 100;
-    const lineTaxTotal = +(
-      effectiveUnitNet *
-      taxRate *
-      item.quantity
-    ).toFixed(2);
+    const lineNetTotal = +(effectiveUnitNet * item.quantity).toFixed(2);
+    const lineTaxTotal = +(lineNetTotal * taxRate).toFixed(2);
+
+    const computedLineGross = +(lineNetTotal + lineTaxTotal).toFixed(2);
+    if (Math.abs(computedLineGross - item.lineTotalGross) > 0.02) {
+      console.warn(
+        `Line total mismatch for "${item.description}": ` +
+          `computed ${computedLineGross} vs expected ${item.lineTotalGross}`,
+      );
+    }
 
     return {
       title: item.description,
       quantity: item.quantity,
-      priceSet: moneyBag(effectiveUnitNet),
+      priceSet: moneyBag(effectiveUnitNet, shopCurrency),
       requiresShipping: false,
       taxable: item.tax > 0,
       ...(item.tax > 0 && {
@@ -82,7 +160,7 @@ function buildOrderInput(
           {
             title: `USt. ${item.tax}%`,
             rate: taxRate,
-            priceSet: moneyBag(lineTaxTotal),
+            priceSet: moneyBag(lineTaxTotal, shopCurrency),
           },
         ],
       }),
@@ -97,24 +175,27 @@ function buildOrderInput(
           {
             kind: "SALE" as const,
             status: "SUCCESS" as const,
-            gateway: data.paymenttype || "manual",
-            amountSet: moneyBag(totals.totalGross),
+            gateway: mapGateway(data.paymenttype),
+            amountSet: moneyBag(totals.totalGross, shopCurrency),
           },
         ]
       : [];
 
+  const trimmedEmail = data.email?.trim() || undefined;
+
   return {
     sourceName: "pumpshot-invoice",
-    currency: "EUR" as const,
+    processedAt: parseDate(data.invoiceDate),
+    currency: shopCurrency,
     taxesIncluded: false,
     financialStatus,
 
     lineItems,
     ...(transactions.length > 0 && { transactions }),
 
-    email: data.email || undefined,
+    email: trimmedEmail,
 
-    tags: ["generated-order"],
+    tags: ["generated-order", `invoice_id_${invoiceId}`],
 
     customAttributes: [
       { key: "invoice_id", value: invoiceId },
@@ -130,7 +211,7 @@ function buildOrderInput(
 
     metafields: [
       {
-        namespace: "PUMPSHOT",
+        namespace: "pumpshot",
         key: "invoice_id",
         value: invoiceId,
         type: "single_line_text_field",
@@ -141,7 +222,28 @@ function buildOrderInput(
   };
 }
 
-// ——— Mutation ———
+// ——— Queries & Mutations ———
+
+const SHOP_CURRENCY_QUERY = `#graphql
+  query shopCurrency {
+    shop {
+      currencyCode
+    }
+  }
+`;
+
+const EXISTING_ORDER_QUERY = `#graphql
+  query existingOrder($query: String!) {
+    orders(first: 1, query: $query) {
+      edges {
+        node {
+          id
+          name
+        }
+      }
+    }
+  }
+`;
 
 const ORDER_CREATE_MUTATION = `#graphql
   mutation orderCreate($order: OrderCreateOrderInput!) {
@@ -149,7 +251,7 @@ const ORDER_CREATE_MUTATION = `#graphql
       order {
         id
         name
-        metafield(namespace: "PUMPSHOT", key: "invoice_id") {
+        metafield(namespace: "pumpshot", key: "invoice_id") {
           id
           namespace
           key
@@ -187,7 +289,42 @@ export async function action({ request }: ActionFunctionArgs) {
   };
 
   try {
-    const orderInput = buildOrderInput(items, totals, data, invoice_id);
+    // 1. Get shop currency
+    const shopRes = await admin.graphql(SHOP_CURRENCY_QUERY);
+    const shopResult = await shopRes.json();
+    const shopCurrency: string =
+      shopResult.data?.shop?.currencyCode ?? "EUR";
+
+    // 2. Check for duplicate order
+    const dupRes = await admin.graphql(EXISTING_ORDER_QUERY, {
+      variables: { query: `tag:invoice_id_${invoice_id}` },
+    });
+    const dupResult = await dupRes.json();
+    const existingOrder = dupResult.data?.orders?.edges?.[0]?.node;
+
+    if (existingOrder) {
+      return jsonResponse(
+        {
+          success: false,
+          errors: [
+            {
+              field: "invoice_id",
+              message: `Order already exists: ${existingOrder.name} (${existingOrder.id})`,
+            },
+          ],
+        },
+        409,
+      );
+    }
+
+    // 3. Create order
+    const orderInput = buildOrderInput(
+      items,
+      totals,
+      data,
+      invoice_id,
+      shopCurrency,
+    );
 
     const response = await admin.graphql(ORDER_CREATE_MUTATION, {
       variables: { order: orderInput },
