@@ -73,7 +73,7 @@ interface Data {
   customerNumber: string;
   refrence: string;
   contactPerson: string;
-  email: email;
+  email: string;
   customerName: string;
   customerAddress: string;
   customerUID: string;
