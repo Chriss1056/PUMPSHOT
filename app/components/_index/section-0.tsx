@@ -485,6 +485,9 @@ export default function Index() {
   
   return (
   <s-stack gap="base">
+      <s-banner heading="Development Notice" tone="warning">
+        Automatic Order creation is still in development. Expect unexpected behaviour.
+      </s-banner>
     <s-box
       padding="base"
       background="base"
