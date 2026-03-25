@@ -270,9 +270,9 @@ export default function Index() {
     if (!orderCreated) {
       return;
     }
-    await updateInvoiceId();
-
     await generateInvoicePdf();
+
+    await updateInvoiceId();
 
     await getInvoiceId();
   };
