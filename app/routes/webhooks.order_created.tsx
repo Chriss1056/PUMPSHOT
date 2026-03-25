@@ -1,4 +1,4 @@
-import type { ActionFunctionArgs } from "react-router";
+/*import type { ActionFunctionArgs } from "react-router";
 import { authenticate } from "../shopify.server";
 
 const NAMESPACE = "pumpshot";
@@ -158,4 +158,211 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   errors = null;
 
   return Response.json({ ok: true });
+};
+*/
+import type { ActionFunctionArgs } from "react-router";
+import { authenticate } from "../shopify.server";
+import { AdminApiContext } from "@shopify/shopify-app-react-router/server";
+
+const NAMESPACE = "pumpshot";
+const KEY = "invoice_id";
+
+// ────────────────────────────────────────────────────────
+//  In-process async mutex
+// ────────────────────────────────────────────────────────
+
+let _lockChain: Promise<void> = Promise.resolve();
+
+async function withInvoiceLock<T>(fn: () => Promise<T>): Promise<T> {
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const previous = _lockChain;
+  _lockChain = gate;
+  await previous;
+  try {
+    return await fn();
+  } finally {
+    release();
+  }
+}
+
+// ────────────────────────────────────────────────────────
+//  Helpers
+// ────────────────────────────────────────────────────────
+
+function fiscalYear(): number {
+  return parseInt(
+    new Date().toLocaleDateString("en-CA", {
+      timeZone: "Europe/Berlin",
+      year: "numeric",
+    }),
+    10,
+  );
+}
+
+function computeNextInvoiceId(lastAssigned: string | null | undefined): string {
+  const year = fiscalYear();
+  if (!lastAssigned) return `${year}-00001`;
+
+  const [yearStr, seqStr] = lastAssigned.split("-");
+  const idYear = parseInt(yearStr, 10);
+  const idSeq = parseInt(seqStr, 10);
+
+  if (isNaN(idYear) || isNaN(idSeq) || idYear !== year) {
+    return `${year}-00001`;
+  }
+  return `${year}-${String(idSeq + 1).padStart(5, "0")}`;
+}
+
+// ────────────────────────────────────────────────────────
+//  GraphQL fragments (each #graphql on its OWN line)
+// ────────────────────────────────────────────────────────
+
+const ORDER_INVOICE_CHECK = `
+  #graphql
+  query OrderInvoiceCheck($id: ID!, $ns: String!, $key: String!) {
+    order(id: $id) {
+      metafield(namespace: $ns, key: $key) {
+        value
+      }
+    }
+  }
+`;
+
+const SHOP_ID_QUERY = `
+  #graphql
+  query ShopId {
+    shop {
+      id
+    }
+  }
+`;
+
+const SHOP_COUNTER_QUERY = `
+  #graphql
+  query ShopCounter($ns: String!, $key: String!) {
+    shop {
+      metafield(namespace: $ns, key: $key) {
+        value
+      }
+    }
+  }
+`;
+
+const METAFIELDS_SET = `
+  #graphql
+  mutation MetafieldsSet($metafields: [MetafieldsSetInput!]!) {
+    metafieldsSet(metafields: $metafields) {
+      metafields {
+        id
+        value
+      }
+      userErrors {
+        field
+        message
+        code
+      }
+    }
+  }
+`;
+
+// ────────────────────────────────────────────────────────
+//  Shared metafield writer
+// ────────────────────────────────────────────────────────
+
+async function setMetafield(
+  admin: AdminApiContext,
+  ownerId: string,
+  value: string,
+): Promise<void> {
+  const res = await admin.graphql(METAFIELDS_SET, {
+    variables: {
+      metafields: [
+        {
+          ownerId,
+          namespace: NAMESPACE,
+          key: KEY,
+          type: "single_line_text_field",
+          value,
+        },
+      ],
+    },
+  });
+  const json = await res.json();
+  const errors = json.data?.metafieldsSet?.userErrors ?? [];
+  if (errors.length > 0) {
+    throw new Error(
+      `metafieldsSet failed for ${ownerId}: ${JSON.stringify(errors)}`,
+    );
+  }
+}
+
+// ────────────────────────────────────────────────────────
+//  Webhook handler
+// ────────────────────────────────────────────────────────
+
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { payload, session, admin } = await authenticate.webhook(request);
+
+  if (!session || !admin) {
+    return new Response(null, { status: 200 });
+  }
+
+  if (payload.source_name === "pos") {
+    return Response.json({ ok: true });
+  }
+
+  const orderGid: string | undefined = payload.admin_graphql_api_id;
+  if (!orderGid) {
+    console.error("[invoice] payload missing admin_graphql_api_id");
+    return Response.json({ ok: true });
+  }
+
+  // ── Idempotency check ──
+  const checkRes = await admin.graphql(ORDER_INVOICE_CHECK, {
+    variables: { id: orderGid, ns: NAMESPACE, key: KEY },
+  });
+  const checkJson = await checkRes.json();
+  const existing = checkJson.data?.order?.metafield?.value;
+  if (existing) {
+    console.log(`[invoice] order ${orderGid} already has ${existing}, skipping`);
+    return Response.json({ ok: true, invoiceId: existing });
+  }
+
+  // ── Resolve shop GID ──
+  const shopRes = await admin.graphql(SHOP_ID_QUERY);
+  const shopJson = await shopRes.json();
+  const shopGid: string = shopJson.data.shop.id;
+
+  // ── Allocate + assign inside the mutex ──
+  try {
+    const invoiceId = await withInvoiceLock(async () => {
+      // 1. Read current counter
+      const ctrRes = await admin.graphql(SHOP_COUNTER_QUERY, {
+        variables: { ns: NAMESPACE, key: KEY },
+      });
+      const ctrJson = await ctrRes.json();
+      const lastAssigned: string | undefined =
+        ctrJson.data?.shop?.metafield?.value;
+
+      // 2. Compute next id
+      const nextId = computeNextInvoiceId(lastAssigned);
+
+      // 3. Advance shop counter FIRST (gap > duplicate)
+      await setMetafield(admin, shopGid, nextId);
+
+      // 4. Stamp the order
+      await setMetafield(admin, orderGid, nextId);
+
+      return nextId;
+    });
+
+    console.log(`[invoice] assigned ${invoiceId} to ${orderGid}`);
+    return Response.json({ ok: true, invoiceId });
+  } catch (err) {
+    console.error("[invoice] allocation failed:", err);
+    return new Response(null, { status: 500 });
+  }
 };
