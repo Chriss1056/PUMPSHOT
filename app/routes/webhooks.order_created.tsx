@@ -194,8 +194,8 @@ async function withInvoiceLock<T>(fn: () => Promise<T>): Promise<T> {
 
 function fiscalYear(): number {
   return parseInt(
-    new Date().toLocaleDateString("en-CA", {
-      timeZone: "Europe/Berlin",
+    new Date().toLocaleDateString("de-AT", {
+      timeZone: "Europe/Vienna",
       year: "numeric",
     }),
     10,
@@ -354,7 +354,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       await setMetafield(admin, shopGid, nextId);
 
       // 4. Stamp the order
-      await setMetafield(admin, orderGid, nextId);
+      await setMetafield(admin, orderGid, lastAssigned as string);
 
       return nextId;
     });

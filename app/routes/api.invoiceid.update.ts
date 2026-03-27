@@ -22,10 +22,10 @@ export const action = async ({ request }: { request: Request }) => {
   }
 
   const validate = parseInt(parts[0]);
-  let value: string = "";
+  let newValue: string = "";
 
   if (validate !== year) {
-    value = year.toString() + "-00001";
+    newValue = year.toString() + "-00001";
   } else {
     const oldVal = parseInt(parts[1]);
 
@@ -33,7 +33,7 @@ export const action = async ({ request }: { request: Request }) => {
       throw new Error('Invalid number after hyphen in incommingValue');
     }
 
-    value = parts[0] + "-" + (oldVal + 1).toString().padStart(5, "0");
+    newValue = parts[0] + "-" + (oldVal + 1).toString().padStart(5, "0");
   }
   
   const prepQuery = `
@@ -65,7 +65,7 @@ export const action = async ({ request }: { request: Request }) => {
   `;
 
   const updateResponse = await admin.graphql(mutation, {
-    variables: { namespace: NAMESPACE, key: KEY, value: value, id: id },
+    variables: { namespace: NAMESPACE, key: KEY, value: newValue, id: id },
   });
   const updateData = await updateResponse.json();
 
