@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { CallbackEvent } from "@shopify/polaris-types";
 import { jsPDF } from 'jspdf';
-import { autoTable } from 'jspdf-autotable';
+import { autoTable, RowInput } from 'jspdf-autotable';
 
 const recalcBalances = (entries: Entry[]): Entry[] => {
   const chronological = [...entries].sort((a, b) => {
@@ -153,8 +153,6 @@ export default function Index() {
 
   const exportTable = () => {
     const doc = new jsPDF({unit: 'pt', format: 'a4'});
-    const width = doc.internal.pageSize.getWidth();
-    const height = doc.internal.pageSize.getHeight();
 
     const currentDate = new Date();
     const day = String(currentDate.getDate()).padStart(2, '0');
@@ -162,6 +160,37 @@ export default function Index() {
     const year = currentDate.getFullYear();
     const formattedDate = `${day}_${month}_${year}`;
     const filename = "PUMPSHOT_Kassenbuch_" + formattedDate + ".pdf";
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor(230, 0, 0);
+    doc.text("PUMPSHOT Kassenbuch (Bar & SumUp)", 40, 50);
+    doc.setFontSize(10); doc.setTextColor(0, 0, 0);
+    doc.text("Datum: " + new Date().toLocaleDateString("de-AT"), 40, 65);
+
+    autoTable(doc, {
+      startY: 90,
+      head: [["Datum", "Belegnr.", "Beschreibung", "Einnahme (€)", "Ausgabe (€)", "Zahlungsart", "Kassenstand (€)", "Beleg"]],
+      body: data.map((e): RowInput => [
+        e.date,
+        e.invoiceid,
+        e.description,
+        e.input.toFixed(2),
+        e.output.toFixed(2),
+        e.type,
+        e.endbalance.toFixed(2),
+        e.invoice ? "Ja" : "Nein",
+      ]),
+      styles: { font: "helvetica", fontSize: 9, cellPadding: 4 },
+      headStyles: { fillColor: [245, 245, 245], textColor: [0, 0, 0] },
+      columnStyles: { 3: { halign: "right" }, 4: { halign: "right" }, 6: { halign: "right" } }
+    });
+
+    const finY = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 25;
+    doc.setFont("helvetica", "bold");
+    doc.text(`Bar: ${meta.bar.toFixed(2).toString()}`, 40, finY);
+    doc.text(`SumUp: ${meta.sumup.toFixed(2).toString()}`, 40, finY + 15);
+    doc.text(`Gesamt: ${meta.total.toFixed(2).toString()}`, 40, finY + 35);
     doc.save(filename);
   };
 
