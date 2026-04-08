@@ -84,6 +84,7 @@ interface Data {
 }
 
 interface Entry {
+  id: number;
   date: string;
   invoiceid: string;
   description: string;
