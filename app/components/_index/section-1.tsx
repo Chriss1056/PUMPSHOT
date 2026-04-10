@@ -33,12 +33,35 @@ const calcMeta = (entries: Entry[]): Meta => ({
     .toFixed(2)),
 });
 
+const getYearMonth = (dateStr: string): string => dateStr.slice(0, 7);
+
+const getAvailableMonths = (entries: Entry[]): string[] => {
+  const months = new Set(entries.map((e) => getYearMonth(e.date)));
+  return Array.from(months).sort();
+};
+
+const formatMonthLabel = (ym: string): string => {
+  const [year, month] = ym.split("-");
+  const date = new Date(Number(year), Number(month) - 1, 1);
+  return date.toLocaleDateString("de-AT", { month: "long", year: "numeric" });
+};
+
+const isFiltered = (range: MonthRange): boolean =>
+  range.from !== null || range.to !== null;
+
+const inRange = (ym: string, range: MonthRange): boolean => {
+  if (range.from && ym < range.from) return false;
+  if (range.to && ym > range.to) return false;
+  return true;
+};
+
 export default function Index() {
   const [loading, setLoading] = useState<boolean>(true);
   const [data, setData] = useState<Entry[]>([]);
   const [meta, setMeta] = useState<Meta>({ bar: 0, sumup: 0, total: 0 });
   const [page, setPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
+  const [range, setRange] = useState<MonthRange>({ from: null, to: null });
 
   useEffect(() => {
     (async () => {
@@ -59,11 +82,81 @@ export default function Index() {
     })();
   }, []);
 
+  const availableMonths = getAvailableMonths(data);
+  const filtered = isFiltered(range);
+
+  const chronologicalData = [...data].sort((a, b) => {
+    const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
+    if (dateDiff !== 0) return dateDiff;
+    return (a.id ?? 0) - (b.id ?? 0);
+  });
+
+  const filteredEntries: Entry[] = filtered
+    ? data.filter((e) => inRange(getYearMonth(e.date), range))
+    : data;
+
+  const beforeEntries: Entry[] = filtered && range.from
+    ? chronologicalData.filter((e) => getYearMonth(e.date) < range.from!)
+    : [];
+
+  const startwertBalance: number =
+    beforeEntries.length > 0
+      ? beforeEntries[beforeEntries.length - 1].endbalance
+      : 0;
+
+  const startwertEntry: Entry | null =
+    filtered && range.from && beforeEntries.length > 0
+      ? {
+          date: `${range.from}-01`,
+          invoiceid: "",
+          description: "Startwert (Übertrag Vorperiode)",
+          input: startwertBalance >= 0 ? startwertBalance : 0,
+          output: startwertBalance < 0 ? Math.abs(startwertBalance) : 0,
+          type: "-",
+          endbalance: startwertBalance,
+          invoice: false,
+        }
+      : null;
+
+  const filteredMeta: Meta = filtered ? calcMeta(filteredEntries) : meta;
+
+  const totalPages = Math.max(1, Math.ceil(filteredEntries.length / pageSize));
+  const paginatedEntries = filteredEntries.slice(
+    (page - 1) * pageSize,
+    page * pageSize
+  );
+  const showStartwert = startwertEntry !== null && page === totalPages;
+
   // maps paginated index back to global data index
   const globalIndex = (index: number) => (page - 1) * pageSize + index;
 
   const handlePageSizeChange = (event: CallbackEvent<'s-select'>) => {
     setPageSize(Number(event.currentTarget.value));
+    setPage(1);
+  };
+
+  const handleFromChange = (event: CallbackEvent<'s-select'>) => {
+    const val = event.currentTarget.value;
+    const from = val === "all" ? null : val;
+    setRange((prev) => ({
+      from,
+      to: from && prev.to && from > prev.to ? null : prev.to,
+    }));
+    setPage(1);
+  };
+
+  const handleToChange = (event: CallbackEvent<'s-select'>) => {
+    const val = event.currentTarget.value;
+    const to = val === "all" ? null : val;
+    setRange((prev) => ({
+      from: to && prev.from && to < prev.from ? null : prev.from,
+      to,
+    }));
+    setPage(1);
+  };
+
+  const clearFilter = () => {
+    setRange({ from: null, to: null });
     setPage(1);
   };
 
@@ -161,17 +254,31 @@ export default function Index() {
     const formattedDate = `${day}_${month}_${year}`;
     const filename = "PUMPSHOT_Kassenbuch_" + formattedDate + ".pdf";
 
+    const rangeLabel = (() => {
+      if (!filtered) return "";
+      if (range.from && range.to)
+        return `${formatMonthLabel(range.from)} – ${formatMonthLabel(range.to)}`;
+      if (range.from) return `ab ${formatMonthLabel(range.from)}`;
+      if (range.to) return `bis ${formatMonthLabel(range.to)}`;
+      return "";
+    })();
+
     doc.setFont("helvetica", "bold");
     doc.setFontSize(14);
     doc.setTextColor(230, 0, 0);
-    doc.text("PUMPSHOT Kassenbuch (Bar & SumUp)", 40, 50);
-    doc.setFontSize(10); doc.setTextColor(0, 0, 0);
+    doc.text(`PUMPSHOT Kassenbuch (Bar & SumUp)${rangeLabel ? ` - ${rangeLabel}` : ""}`, 40, 50);
+    doc.setFontSize(10);
+    doc.setTextColor(0, 0, 0);
     doc.text("Datum: " + new Date().toLocaleDateString("de-AT"), 40, 65);
-
-    autoTable(doc, {
-      startY: 90,
-      head: [["Datum", "Belegnr.", "Beschreibung", "Einnahme (€)", "Ausgabe (€)", "Zahlungsart", "Kassenstand (€)", "Beleg"]],
-      body: data.map((e): RowInput => [
+    
+    const exportRows: RowInput[] = [...filteredEntries].sort(
+      (a, b) => {
+        const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime();
+        if (dateDiff !== 0) return dateDiff;
+        return (a.id ?? 0) - (b.id ?? 0);
+      }
+    ).map(
+      (e): RowInput => [
         e.date,
         e.invoiceid,
         e.description,
@@ -180,17 +287,44 @@ export default function Index() {
         e.type,
         e.endbalance.toFixed(2),
         e.invoice ? "Ja" : "Nein",
-      ]),
+      ]
+    );
+
+    if (startwertEntry) {
+      exportRows.unshift([
+        startwertEntry.date,
+        "",
+        startwertEntry.description,
+        startwertEntry.input.toFixed(2),
+        startwertEntry.output.toFixed(2),
+        "-",
+        startwertEntry.endbalance.toFixed(2),
+        "-",
+      ]);
+    }
+
+    autoTable(doc, {
+      startY: 90,
+      head: [["Datum", "Belegnr.", "Beschreibung", "Einnahme (€)", "Ausgabe (€)", "Zahlungsart", "Kassenstand (€)", "Beleg"]],
+      body: exportRows,
       styles: { font: "helvetica", fontSize: 9, cellPadding: 4 },
       headStyles: { fillColor: [245, 245, 245], textColor: [0, 0, 0] },
+      didParseCell: (hookData) => {
+        if (startwertEntry && hookData.row.index === 0 && hookData.section === "body") {
+          hookData.cell.styles.fillColor = [220, 235, 255];
+          hookData.cell.styles.fontStyle = "bold";
+        }
+      },
       columnStyles: { 3: { halign: "right" }, 4: { halign: "right" }, 6: { halign: "right" } }
     });
 
     const finY = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 25;
+
     doc.setFont("helvetica", "bold");
-    doc.text(`Bar: ${meta.bar.toFixed(2).toString()}`, 40, finY);
-    doc.text(`SumUp: ${meta.sumup.toFixed(2).toString()}`, 40, finY + 15);
-    doc.text(`Gesamt: ${meta.total.toFixed(2).toString()}`, 40, finY + 35);
+    doc.text(`Bar: ${filteredMeta.bar.toFixed(2)} €`, 40, finY);
+    doc.text(`SumUp: ${filteredMeta.sumup.toFixed(2)} €`, 40, finY + 15);
+    doc.text(`Gesamt: ${(startwertBalance + filteredMeta.total).toFixed(2)} €`, 40, finY + 30);
+    
     doc.save(filename);
   };
 
@@ -201,9 +335,6 @@ export default function Index() {
       </s-stack>
     );
   }
-
-  const totalPages = Math.ceil(data.length / pageSize);
-  const paginated = data.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <s-stack gap="base">
@@ -217,11 +348,13 @@ export default function Index() {
         borderColor="base"
         borderRadius="base"
       >
-        <s-grid gridTemplateColumns="auto auto auto" gap="base" justifyItems="center">
-          <s-text>Bar: {meta.bar.toFixed(2).toString()} €</s-text>
-          <s-text>SumUp: {meta.sumup.toFixed(2).toString()} €</s-text>
-          <s-text><strong>Gesamt: {meta.total.toFixed(2).toString()} €</strong></s-text>
-        </s-grid>
+        <s-stack gap="base">
+          <s-grid gridTemplateColumns="auto auto auto" gap="base" justifyItems="center">
+            <s-text>Bar: {filteredMeta.bar.toFixed(2)} €</s-text>
+            <s-text>SumUp: {filteredMeta.sumup.toFixed(2)} €</s-text>
+            <s-text>Gesamt: {(startwertBalance + filteredMeta.total).toFixed(2)} €</s-text>
+          </s-grid>
+        </s-stack>
       </s-box>
       
       <s-divider />
@@ -237,6 +370,44 @@ export default function Index() {
           <s-stack direction="inline" gap="base">
             <s-button onClick={addEntry} variant="secondary" icon="product-add" accessibilityLabel="Eintrag Hinzufügen">Neuer Eintrag</s-button>
             <s-button id="export" onClick={exportTable} variant="secondary" icon="check" accessibilityLabel="Tabelle Exportieren">Exportieren</s-button>
+            <s-select
+              value={range.from ?? "all"}
+              onChange={handleFromChange}
+              label="Von"
+              labelAccessibilityVisibility="exclusive"
+            >
+              <s-option value="all">Von (alle)</s-option>
+              {availableMonths.map((ym) => (
+                <s-option key={ym} value={ym}>
+                  {formatMonthLabel(ym)}
+                </s-option>
+              ))}
+            </s-select>
+
+            <s-select
+              value={range.to ?? "all"}
+              onChange={handleToChange}
+              label="Bis"
+              labelAccessibilityVisibility="exclusive"
+            >
+              <s-option value="all">Bis (alle)</s-option>
+              {availableMonths.map((ym) => (
+                <s-option key={ym} value={ym}>
+                  {formatMonthLabel(ym)}
+                </s-option>
+              ))}
+            </s-select>
+
+            {/* Clear button only visible when a range is active */}
+            {filtered && (
+              <s-button
+                onClick={clearFilter}
+                variant="tertiary"
+                accessibilityLabel="Filter zurücksetzen"
+              >
+                Filter zurücksetzen
+              </s-button>
+            )}
             <s-select value={String(pageSize)} onChange={handlePageSizeChange} label="Einträge pro Seite" labelAccessibilityVisibility="exclusive">
               <s-option value="10">10 pro Seite</s-option>
               <s-option value="20">20 pro Seite</s-option>
@@ -257,7 +428,7 @@ export default function Index() {
               <s-table-header></s-table-header>
             </s-table-header-row>
             <s-table-body id="cashRows">
-              {paginated.map((entry, index) => (
+              {paginatedEntries.map((entry, index) => (
                 <s-table-row key={index}>
                   <s-table-cell><s-date-field value={entry.date} onBlur={handleInputChange(index, 'date')} label="Datum" labelAccessibilityVisibility="exclusive" /></s-table-cell>
                   <s-table-cell><s-text-field value={entry.invoiceid} onBlur={handleInputChange(index, 'invoiceid')} label="Rechnungsnummer" labelAccessibilityVisibility="exclusive" /></s-table-cell>
@@ -275,6 +446,20 @@ export default function Index() {
                   <s-table-cell><s-button onClick={() => removeEntry(index)} variant="tertiary" tone="critical" icon="delete" accessibilityLabel="Eintrag Entfernen"/></s-table-cell>
                 </s-table-row>
               ))}
+              {/* ── Startwert row (read-only, last page only) ── */}
+              {showStartwert && (
+                <s-table-row key="startwert">
+                  <s-table-cell>{startwertEntry!.date}</s-table-cell>
+                  <s-table-cell>–</s-table-cell>
+                  <s-table-cell><strong>{startwertEntry!.description}</strong></s-table-cell>
+                  <s-table-cell>{startwertEntry!.input.toFixed(2)} €</s-table-cell>
+                  <s-table-cell>{startwertEntry!.output.toFixed(2)} €</s-table-cell>
+                  <s-table-cell>–</s-table-cell>
+                  <s-table-cell><strong>{startwertEntry!.endbalance.toFixed(2)} €</strong></s-table-cell>
+                  <s-table-cell>–</s-table-cell>
+                  <s-table-cell />
+                </s-table-row>
+              )}
             </s-table-body>
           </s-table>
           <s-stack direction="inline" gap="base">
