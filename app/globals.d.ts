@@ -100,3 +100,8 @@ interface Meta {
   sumup: number;
   total: number;
 }
+
+interface MonthRange {
+  from: string | null;
+  to: string | null;
+}
