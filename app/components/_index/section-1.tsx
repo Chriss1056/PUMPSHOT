@@ -343,8 +343,8 @@ export default function Index() {
 
   return (
     <s-stack gap="base">
-      <s-banner heading="Development Notice" tone="warning">
-        This Page is under active Development. Please expect Bugs.
+      <s-banner heading="Development Notice" tone="info">
+        Kassenbuch is still in beta. Expect Bugs.
       </s-banner>
       <s-box
         padding="base"
