@@ -58,7 +58,6 @@ const inRange = (ym: string, range: MonthRange): boolean => {
 export default function Index() {
   const [loading, setLoading] = useState<boolean>(true);
   const [data, setData] = useState<Entry[]>([]);
-  const [meta, setMeta] = useState<Meta>({ bar: 0, sumup: 0, total: 0 });
   const [page, setPage] = useState<number>(1);
   const [pageSize, setPageSize] = useState<number>(10);
   const [range, setRange] = useState<MonthRange>({ from: null, to: null });
@@ -73,7 +72,7 @@ export default function Index() {
         const json = await res.json();
         const entries = json?.data || [];
         setData(entries);
-        setMeta(calcMeta(entries));
+        calcMeta(entries);
       } catch (err) {
         console.error("Failed to fetch data:", err);
       } finally {
@@ -118,7 +117,13 @@ export default function Index() {
         }
       : null;
 
-  const filteredMeta: Meta = filtered ? calcMeta(filteredEntries) : meta;
+  // All entries up to and including range.to (or all entries when unfiltered).
+  // This drives the Bar / SumUp / Gesamt figures shown in the summary and PDF.
+  const entriesUpToEnd: Entry[] = filtered && range.to
+    ? chronologicalData.filter((e) => getYearMonth(e.date) <= range.to!)
+    : chronologicalData;
+
+  const cumulativeMeta: Meta = calcMeta(entriesUpToEnd);
 
   const totalPages = Math.max(1, Math.ceil(filteredEntries.length / pageSize));
   const paginatedEntries = filteredEntries.slice(
@@ -175,7 +180,7 @@ export default function Index() {
     updated[index] = entry;
     const recalculated = recalcBalances(updated);
     setData(recalculated);
-    setMeta(calcMeta(recalculated));
+    calcMeta(recalculated);
 
     // persist the updated entry
     fetch("api/kassenbuch/update", {
@@ -219,7 +224,7 @@ export default function Index() {
       const saved: Entry = { ...newEntry, id: json?.data?.id };
       const updated = recalcBalances([saved, ...data]);
       setData(updated);
-      setMeta(calcMeta(updated));
+      calcMeta(updated);
       setPage(1);
     } catch (err) {
       console.error("Failed to add entry:", err);
@@ -238,7 +243,7 @@ export default function Index() {
       }
       const updated = recalcBalances(data.filter((_, i) => i !== globalIndex(index)));
       setData(updated);
-      setMeta(calcMeta(updated));
+      calcMeta(updated);
     } catch (err) {
       console.error("Failed to delete entry:", err);
     }
@@ -321,9 +326,9 @@ export default function Index() {
     const finY = (doc as jsPDF & { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 25;
 
     doc.setFont("helvetica", "bold");
-    doc.text(`Bar: ${filteredMeta.bar.toFixed(2)} €`, 40, finY);
-    doc.text(`SumUp: ${filteredMeta.sumup.toFixed(2)} €`, 40, finY + 15);
-    doc.text(`Gesamt: ${(startwertBalance + filteredMeta.total).toFixed(2)} €`, 40, finY + 30);
+    doc.text(`Bar: ${cumulativeMeta.bar.toFixed(2)} €`, 40, finY);
+    doc.text(`SumUp: ${cumulativeMeta.sumup.toFixed(2)} €`, 40, finY + 15);
+    doc.text(`Gesamt: ${cumulativeMeta.total.toFixed(2)} €`, 40, finY + 30);
     
     doc.save(filename);
   };
@@ -350,9 +355,9 @@ export default function Index() {
       >
         <s-stack gap="base">
           <s-grid gridTemplateColumns="auto auto auto" gap="base" justifyItems="center">
-            <s-text>Bar: {filteredMeta.bar.toFixed(2)} €</s-text>
-            <s-text>SumUp: {filteredMeta.sumup.toFixed(2)} €</s-text>
-            <s-text>Gesamt: {(startwertBalance + filteredMeta.total).toFixed(2)} €</s-text>
+            <s-text>Bar: {cumulativeMeta.bar.toFixed(2)} €</s-text>
+            <s-text>SumUp: {cumulativeMeta.sumup.toFixed(2)} €</s-text>
+            <s-text>Gesamt: {cumulativeMeta.total.toFixed(2)} €</s-text>
           </s-grid>
         </s-stack>
       </s-box>
