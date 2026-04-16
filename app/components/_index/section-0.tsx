@@ -108,33 +108,33 @@ export default function Index() {
     }
   };
 
-  const handleNewHint = () => (event: CallbackEvent<'s-select'>) => {
-    const selectedHint = event.currentTarget.value as 'Onlinezahlung' | 'Bar' | 'SumUp' | 'Überweisung' | 'Offen';
-    
+  const handleNewHint = () => (event: CallbackEvent<"s-select">) => {
+    const selectedHint = event.currentTarget.value as 
+        'Onlinezahlung' | 'Bar' | 'SumUp' | 'Überweisung' | 'Offen';
+
     const commonHint: string =
-    "\n\nSofern nicht anders angegeben, entspricht das Lieferdatum dem Rechnungsdatum.\n" +
-    "Es gelten unsere Allgemeinen Geschäftsbedingungen (AGB).\n" +
-    "Mit Entgegennahme der Ware erkennen Sie den Eigentumsvorbehalt bis zur vollständigen Bezahlung an.";
+        "\n\nSofern nicht anders angegeben, entspricht das Lieferdatum dem Rechnungsdatum.\n" +
+        "Es gelten unsere Allgemeinen Geschäftsbedingungen (AGB).\n" +
+        "Mit Entgegennahme der Ware erkennen Sie den Eigentumsvorbehalt bis zur vollständigen Bezahlung an.";
 
-    let specialHint: string = '';
-    if (selectedHint === "Onlinezahlung") {
-      specialHint = "Die Zahlung wurde bereits per Onlinezahlung beglichen. Bitte keinen weiteren Betrag überweisen.";
-    } else if (selectedHint === "Bar") {
-      specialHint = "Die Zahlung wurde bar entgegengenommen.";
-    } else if (selectedHint === "SumUp") {
-      specialHint = "Die Zahlung wurde per Kartenzahlung (SumUp) abgewickelt.";
-    } else if (selectedHint === "Überweisung") {
-      specialHint = "Bitte überweisen Sie den Gesamtbetrag innerhalb von 7 Tagen auf das unten angegebene Konto.";
-    } else if (selectedHint === "Offen") {
-      specialHint = "Der Betrag ist noch offen. Bitte begleichen Sie die Rechnung innerhalb der angegebenen Frist.";
-    }
+    const hintMap: Record<string, string> = {
+        Onlinezahlung: "Die Zahlung wurde bereits per Onlinezahlung beglichen. Bitte keinen weiteren Betrag überweisen.",
+        Bar: "Die Zahlung wurde bar entgegengenommen.",
+        SumUp: "Die Zahlung wurde per Kartenzahlung (SumUp) abgewickelt.",
+        Überweisung: "Bitte überweisen Sie den Gesamtbetrag innerhalb von 7 Tagen auf das unten angegebene Konto.",
+        Offen: "Der Betrag ist noch offen. Bitte begleichen Sie die Rechnung innerhalb der angegebenen Frist.",
+    };
 
-    const newHint: string = specialHint + commonHint;
-    const updatedData: Data = { ...data };
-    updatedData.paymenttype = selectedHint;
-    updatedData.hint = newHint;
-    setData(updatedData);
-  }
+    const specialHint = hintMap[selectedHint] ?? "";
+    const newHint = specialHint + commonHint;
+
+    // ✅ Use functional update to avoid stale closure
+    setData((prev) => ({
+        ...prev,
+        paymenttype: selectedHint,
+        hint: newHint,
+    }));
+};
 
   const removeItem = (index: number) => {
     const updatedItems: Item[] = items.filter((_, itemIndex) => itemIndex !== index);
