@@ -130,6 +130,8 @@ function buildOrderInput(
   invoiceId: string,
   shopCurrency: string,
 ) {
+  const nameParts = data.customerName.trim().split(/\s+/);
+
   const lineItems = items.map((item) => {
     const discountFactor =
       item.allowDiscount && item.discount > 0
@@ -180,8 +182,8 @@ function buildOrderInput(
           },
         ]
       : [];
-
-  const trimmedEmail = data.email?.trim() || undefined;
+      
+  const trimmedEmail = data.customerEmail?.trim() || undefined;
 
   return {
     sourceName: "pumpshot-invoice",
@@ -192,7 +194,7 @@ function buildOrderInput(
 
     lineItems,
     ...(transactions.length > 0 && { transactions }),
-
+    
     email: trimmedEmail,
 
     tags: ["generated-order", `invoice_id_${invoiceId}`],
@@ -217,6 +219,14 @@ function buildOrderInput(
         type: "single_line_text_field",
       },
     ],
+
+    customer: {
+      toUpsert: {
+        firstName: nameParts[0] || "",
+        lastName: nameParts.slice(1).join(" ") || "",
+        email: data.customerEmail?.trim() || undefined,
+      },
+    },
 
     billingAddress: parseAddress(data.customerName, data.customerAddress),
   };
@@ -251,6 +261,12 @@ const ORDER_CREATE_MUTATION = `#graphql
       order {
         id
         name
+        customer {
+          id
+          firstName
+          lastName
+          email
+        }
         metafield(namespace: "pumpshot", key: "invoice_id") {
           id
           namespace
