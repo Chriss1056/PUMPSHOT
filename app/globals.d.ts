@@ -74,6 +74,7 @@ interface Data {
   refrence: string;
   contactPerson: string;
   email: string;
+  customerEmail: string;
   customerName: string;
   customerAddress: string;
   customerUID: string;
