@@ -19,6 +19,7 @@ export default function Index() {
     refrence: '',
     contactPerson: 'Fabian Flotzinger',
     email: 'office@pumpshot.at',
+    customerEmail: '',
     customerName: '',
     customerAddress: '',
     customerUID: '',
@@ -128,7 +129,6 @@ export default function Index() {
     const specialHint = hintMap[selectedHint] ?? "";
     const newHint = specialHint + commonHint;
 
-    // ✅ Use functional update to avoid stale closure
     setData((prev) => ({
         ...prev,
         paymenttype: selectedHint,
@@ -513,7 +513,7 @@ export default function Index() {
           />
         </s-stack>
         <s-stack gap="base">
-          <s-text-field onBlur={handleDataChange('customerNumber')} value={data.customerNumber} label="Kundennummer" placeholder="user_0123456789" autocomplete="off"></s-text-field>
+          <s-email-field onBlur={handleDataChange('customerEmail')} value={data.customerEmail} label="Kundenmail" placeholder="invalid@example.com" autocomplete="off" required></s-email-field>
           <s-text-field onBlur={handleDataChange('refrence')} value={data.refrence} label="Referenz" autocomplete="off"></s-text-field>
           <s-text-field onBlur={handleDataChange('contactPerson')} value={data.contactPerson} label="Ansprechpartner" placeholder="Max Mustermann" autocomplete="off" required></s-text-field>
           <s-email-field onBlur={handleDataChange('email')} value={data.email} label="E-Mail" placeholder="invalid@example.com" autocomplete="off" required></s-email-field>
